@@ -1,0 +1,109 @@
+seed: 42
+
+data:
+  # Every source has an explicit role. Training code additionally rejects every
+  # sample whose label is not in normal_labels.
+  sources:
+    - glob: data/raw/train/normal/**/*.pcap*
+      split: train
+      label: normal
+    - glob: data/raw/calibration/normal/**/*.pcap*
+      split: calibration
+      label: normal
+    - glob: data/raw/test/normal/**/*.pcap*
+      split: test
+      label: normal
+    - glob: data/raw/test/attack/**/*.pcap*
+      split: test
+      label: attack
+  # Optional CSV columns: pcap,label,split. Relative paths are relative to CSV.
+  manifest: null
+  label_from_parent: false
+  normal_labels: [normal, benign]
+  attack_labels: [attack, anomaly, malicious]
+  processed_path: data/processed/flows.npz
+  metadata_path: data/processed/flows.metadata.json
+  baseline_reader_path: ../baselines/bpf-dag/data/pcap.py
+  allowed_protocols: [tcp, udp]
+  flow_window_seconds: 3.0
+  micro_bin_seconds: 0.1
+  min_packets_per_segment: 1
+
+flow_model:
+  architecture: v2
+  embedding_dim: 32
+  hidden_channels: 48
+  tcn_blocks: 4
+  kernel_size: 3
+  dropout: 0.1
+  mask_ratio: 0.2
+  score_mask_ratio: 0.2
+  # V2 reconstructs all bins through complementary masks, while emphasizing
+  # bins that contain real packets. No additional traffic feature is added.
+  score_mask_rounds: 5
+  nonempty_loss_weight: 8.0
+  active_error_weight: 0.8
+  epochs: 30
+  batch_size: 256
+  learning_rate: 0.001
+  weight_decay: 0.00001
+  gradient_clip: 5.0
+  early_stopping_patience: 6
+
+prototypes:
+  count: 16
+  batch_size: 1024
+  max_iter: 200
+
+entity_model:
+  include_mean_embedding: true
+  history_windows: 5
+  hidden_dim: 64
+  num_layers: 1
+  dropout: 0.0
+  epochs: 25
+  batch_size: 256
+  learning_rate: 0.001
+  weight_decay: 0.00001
+  early_stopping_patience: 5
+
+spatial_model:
+  context_mode: historical
+  hidden_dim: 64
+  alpha: 2.0
+  min_reliability: 0.001
+  history_beta: 1.0
+  state_update_rate: 0.10
+  multiplicity_gamma: 0.05
+  epochs: 25
+  batch_size: 256
+  learning_rate: 0.001
+  weight_decay: 0.00001
+  early_stopping_patience: 5
+
+scoring:
+  component_low_quantile: 0.05
+  component_high_quantile: 0.95
+  deployment_fpr: 0.01
+  local_weights:
+    prototype: 0.50
+    reconstruction: 0.50
+  # Entity remains a separately reported diagnostic by default, as required by
+  # Phase 2. Set entity > 0 only after validating that signal independently.
+  final_weights:
+    local: 0.70
+    spatial: 0.30
+    entity: 0.00
+
+runtime:
+  device: auto
+  num_workers: 0
+  output_dir: outputs/default
+  embeddings_path: outputs/default/embeddings.npz
+  flow_checkpoint: outputs/default/flow_model.pt
+  prototypes_path: outputs/default/prototypes.npz
+  entity_checkpoint: outputs/default/entity_model.pt
+  spatial_checkpoint: outputs/default/spatial_model.pt
+  calibration_path: outputs/default/calibration.json
+  scores_path: outputs/default/test_scores.csv
+  metrics_path: outputs/default/test_metrics.json

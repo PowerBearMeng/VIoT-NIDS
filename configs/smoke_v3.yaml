@@ -1,0 +1,116 @@
+seed: 7
+
+data:
+  sources:
+    - glob: data/smoke/train/normal/*.pcap
+      split: train
+      label: normal
+    - glob: data/smoke/calibration/normal/*.pcap
+      split: calibration
+      label: normal
+    - glob: data/smoke/test/normal/*.pcap
+      split: test
+      label: normal
+    - glob: data/smoke/test/attack/*.pcap
+      split: test
+      label: attack
+  manifest: null
+  label_from_parent: false
+  normal_labels: [normal, benign]
+  attack_labels: [attack, anomaly, malicious]
+  processed_path: data/processed/smoke_v3.npz
+  metadata_path: data/processed/smoke_v3.metadata.json
+  baseline_reader_path: ../baselines/bpf-dag/data/pcap.py
+  allowed_protocols: [tcp, udp]
+  flow_window_seconds: 3.0
+  micro_bin_seconds: 0.1
+  min_packets_per_segment: 1
+
+flow_model:
+  architecture: v2
+  anomaly_score: reconstruction_only
+  embedding_dim: 16
+  hidden_channels: 16
+  tcn_blocks: 2
+  kernel_size: 3
+  dropout: 0.0
+  mask_ratio: 0.2
+  score_mask_ratio: 0.2
+  score_mask_rounds: 5
+  nonempty_loss_weight: 8.0
+  active_error_weight: 0.8
+  epochs: 3
+  batch_size: 16
+  learning_rate: 0.003
+  weight_decay: 0.0
+  gradient_clip: 5.0
+  early_stopping_patience: 3
+
+prototypes:
+  count: 4
+  batch_size: 64
+  max_iter: 50
+
+entity_model:
+  include_mean_embedding: true
+  history_windows: 3
+  hidden_dim: 24
+  num_layers: 1
+  dropout: 0.0
+  epochs: 3
+  batch_size: 32
+  learning_rate: 0.003
+  weight_decay: 0.0
+  early_stopping_patience: 3
+
+# Retained only to reproduce the V2 weighted-fusion ablation.
+spatial_model:
+  context_mode: historical
+  local_score_source: combined
+  hidden_dim: 24
+  alpha: 2.0
+  min_reliability: 0.001
+  history_beta: 1.0
+  state_update_rate: 0.10
+  multiplicity_gamma: 0.05
+  epochs: 3
+  batch_size: 32
+  learning_rate: 0.003
+  weight_decay: 0.0
+  early_stopping_patience: 3
+
+context_model:
+  mode: behavior_composition
+  pair_enabled: true
+  entity_enabled: true
+  history: frozen_train_reference
+  use_log_count: true
+  positive_deviation_only: true
+  epsilon: 0.001
+  legacy_spatial_ablation: true
+
+scoring:
+  fusion: normal_tail_max
+  component_low_quantile: 0.05
+  component_high_quantile: 0.95
+  deployment_fpr: 0.01
+  tail_epsilon: 1.0e-12
+  entity_weight: 0.0
+  local_weights: {prototype: 0.5, reconstruction: 0.5}
+  legacy_final_weights: {local: 0.7, spatial: 0.3, entity: 0.0}
+  # Compatibility value for the V1/V2 calibration branch.
+  final_weights: {local: 0.7, spatial: 0.3, entity: 0.0}
+
+runtime:
+  device: cpu
+  num_workers: 0
+  output_dir: outputs/smoke_v3
+  embeddings_path: outputs/smoke_v3/embeddings.npz
+  flow_checkpoint: outputs/smoke_v3/flow_model.pt
+  prototypes_path: outputs/smoke_v3/prototypes.npz
+  entity_checkpoint: outputs/smoke_v3/entity_model.pt
+  spatial_checkpoint: outputs/smoke_v3/spatial_model.pt
+  context_reference_path: outputs/smoke_v3/context_reference.npz
+  calibration_path: outputs/smoke_v3/calibration.json
+  scores_path: outputs/smoke_v3/test_scores.csv
+  metrics_path: outputs/smoke_v3/test_metrics.json

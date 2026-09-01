@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.venv/
+data/processed/
+data/raw/
+data/smoke/
+outputs/

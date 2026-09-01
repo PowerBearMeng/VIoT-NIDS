@@ -1,0 +1,91 @@
+seed: 42
+
+data:
+  sources: []
+  gotham_manifest: ../configs/gotham_video_nids_manifest.json
+  gotham_workspace_root: ..
+  include_gotham_training: true
+  include_gotham_evaluation: false
+  evaluation_datasets: []
+  calibration_fraction: 0.20
+  manifest: null
+  label_from_parent: false
+  normal_labels: [normal, benign]
+  attack_labels: [attack, anomaly, malicious]
+  processed_path: data/processed/gotham_train.npz
+  metadata_path: data/processed/gotham_train.metadata.json
+  baseline_reader_path: ../baselines/bpf-dag/data/pcap.py
+  allowed_protocols: [tcp, udp]
+  flow_window_seconds: 3.0
+  micro_bin_seconds: 0.1
+  min_packets_per_segment: 1
+
+flow_model:
+  architecture: v2
+  embedding_dim: 32
+  hidden_channels: 48
+  tcn_blocks: 4
+  kernel_size: 3
+  dropout: 0.1
+  mask_ratio: 0.2
+  score_mask_ratio: 0.2
+  score_mask_rounds: 5
+  nonempty_loss_weight: 8.0
+  active_error_weight: 0.8
+  epochs: 30
+  batch_size: 1024
+  learning_rate: 0.001
+  weight_decay: 0.00001
+  gradient_clip: 5.0
+  early_stopping_patience: 6
+
+prototypes:
+  count: 32
+  batch_size: 2048
+  max_iter: 200
+
+entity_model:
+  include_mean_embedding: true
+  history_windows: 5
+  hidden_dim: 64
+  num_layers: 1
+  dropout: 0.0
+  epochs: 25
+  batch_size: 1024
+  learning_rate: 0.001
+  weight_decay: 0.00001
+  early_stopping_patience: 5
+
+spatial_model:
+  context_mode: historical
+  hidden_dim: 64
+  alpha: 2.0
+  min_reliability: 0.001
+  history_beta: 1.0
+  state_update_rate: 0.10
+  multiplicity_gamma: 0.05
+  epochs: 25
+  batch_size: 1024
+  learning_rate: 0.001
+  weight_decay: 0.00001
+  early_stopping_patience: 5
+
+scoring:
+  component_low_quantile: 0.05
+  component_high_quantile: 0.95
+  deployment_fpr: 0.01
+  local_weights: {prototype: 0.5, reconstruction: 0.5}
+  final_weights: {local: 0.7, spatial: 0.3, entity: 0.0}
+
+runtime:
+  device: cuda
+  num_workers: 0
+  output_dir: outputs/gotham_v2
+  embeddings_path: outputs/gotham_v2/train_embeddings.npz
+  flow_checkpoint: outputs/gotham_v2/flow_model.pt
+  prototypes_path: outputs/gotham_v2/prototypes.npz
+  entity_checkpoint: outputs/gotham_v2/entity_model.pt
+  spatial_checkpoint: outputs/gotham_v2/spatial_model.pt
+  calibration_path: outputs/gotham_v2/calibration.json
+  scores_path: outputs/gotham_v2/train_scores.csv
+  metrics_path: outputs/gotham_v2/train_metrics.json

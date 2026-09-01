@@ -1,0 +1,97 @@
+seed: 7
+
+data:
+  sources:
+    - glob: data/smoke/train/normal/*.pcap
+      split: train
+      label: normal
+    - glob: data/smoke/calibration/normal/*.pcap
+      split: calibration
+      label: normal
+    - glob: data/smoke/test/normal/*.pcap
+      split: test
+      label: normal
+    - glob: data/smoke/test/attack/*.pcap
+      split: test
+      label: attack
+  manifest: null
+  label_from_parent: false
+  normal_labels: [normal, benign]
+  attack_labels: [attack, anomaly, malicious]
+  processed_path: data/processed/smoke.npz
+  metadata_path: data/processed/smoke.metadata.json
+  baseline_reader_path: ../baselines/bpf-dag/data/pcap.py
+  allowed_protocols: [tcp, udp]
+  flow_window_seconds: 3.0
+  micro_bin_seconds: 0.1
+  min_packets_per_segment: 1
+
+flow_model:
+  architecture: v2
+  embedding_dim: 16
+  hidden_channels: 16
+  tcn_blocks: 2
+  kernel_size: 3
+  dropout: 0.0
+  mask_ratio: 0.2
+  score_mask_ratio: 0.2
+  score_mask_rounds: 5
+  nonempty_loss_weight: 8.0
+  active_error_weight: 0.8
+  epochs: 3
+  batch_size: 16
+  learning_rate: 0.003
+  weight_decay: 0.0
+  gradient_clip: 5.0
+  early_stopping_patience: 3
+
+prototypes:
+  count: 4
+  batch_size: 64
+  max_iter: 50
+
+entity_model:
+  include_mean_embedding: true
+  history_windows: 3
+  hidden_dim: 24
+  num_layers: 1
+  dropout: 0.0
+  epochs: 3
+  batch_size: 32
+  learning_rate: 0.003
+  weight_decay: 0.0
+  early_stopping_patience: 3
+
+spatial_model:
+  context_mode: historical
+  hidden_dim: 24
+  alpha: 2.0
+  min_reliability: 0.001
+  history_beta: 1.0
+  state_update_rate: 0.10
+  multiplicity_gamma: 0.05
+  epochs: 3
+  batch_size: 32
+  learning_rate: 0.003
+  weight_decay: 0.0
+  early_stopping_patience: 3
+
+scoring:
+  component_low_quantile: 0.05
+  component_high_quantile: 0.95
+  deployment_fpr: 0.01
+  local_weights: {prototype: 0.5, reconstruction: 0.5}
+  final_weights: {local: 0.7, spatial: 0.3, entity: 0.0}
+
+runtime:
+  device: cpu
+  num_workers: 0
+  output_dir: outputs/smoke
+  embeddings_path: outputs/smoke/embeddings.npz
+  flow_checkpoint: outputs/smoke/flow_model.pt
+  prototypes_path: outputs/smoke/prototypes.npz
+  entity_checkpoint: outputs/smoke/entity_model.pt
+  spatial_checkpoint: outputs/smoke/spatial_model.pt
+  calibration_path: outputs/smoke/calibration.json
+  scores_path: outputs/smoke/test_scores.csv
+  metrics_path: outputs/smoke/test_metrics.json
