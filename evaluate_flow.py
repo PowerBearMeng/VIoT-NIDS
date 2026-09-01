@@ -311,6 +311,19 @@ def evaluate(
     if not len(indices):
         raise ValueError(f"Split {split!r} contains no segments")
     calibration = load_json(calibration_path)
+    if int(calibration.get("format_version", 1)) == 4:
+        from evaluate_v4 import evaluate_v4
+
+        return evaluate_v4(
+            config,
+            dataset,
+            indices,
+            calibration,
+            scores_path,
+            metrics_path,
+            device,
+            split,
+        )
     started = time.perf_counter()
     raw = score_raw_components(config, dataset, indices, device)
     elapsed = time.perf_counter() - started

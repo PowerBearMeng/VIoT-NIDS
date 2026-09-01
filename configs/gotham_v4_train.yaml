@@ -1,0 +1,81 @@
+seed: 42
+
+data:
+  sources: []
+  gotham_manifest: ../configs/gotham_video_nids_manifest.json
+  gotham_workspace_root: ..
+  include_gotham_training: true
+  include_gotham_evaluation: false
+  evaluation_datasets: []
+  calibration_fraction: 0.20
+  manifest: null
+  label_from_parent: false
+  normal_labels: [normal, benign]
+  attack_labels: [attack, anomaly, malicious]
+  processed_path: data/processed/gotham_v4_train.npz
+  metadata_path: data/processed/gotham_v4_train.metadata.json
+  baseline_reader_path: ../baselines/bpf-dag/data/pcap.py
+  allowed_protocols: [tcp, udp]
+  flow_window_seconds: 3.0
+  micro_bin_seconds: 0.1
+  flow_orientation: directional
+  window_alignment: epoch
+  microbin_feature_profile: directional_iat_v1
+  min_packets_per_segment: 1
+
+flow_model:
+  architecture: v2
+  anomaly_score: reconstruction_only
+  embedding_dim: 32
+  hidden_channels: 48
+  tcn_blocks: 4
+  kernel_size: 3
+  dropout: 0.1
+  mask_ratio: 0.2
+  score_mask_ratio: 0.2
+  score_mask_rounds: 5
+  nonempty_loss_weight: 8.0
+  active_error_weight: 0.8
+  epochs: 30
+  batch_size: 1024
+  learning_rate: 0.001
+  weight_decay: 0.00001
+  gradient_clip: 5.0
+  early_stopping_patience: 6
+
+context_model:
+  mode: neural_intensity
+  pair_enabled: true
+  entity_enabled: true
+  hidden_dim: 64
+  latent_channels: 16
+  assignment_temperature: 0.5
+  scope_temperature: 1.0
+  min_log_scale: -3.0
+  max_log_scale: 2.0
+  balance_weight: 0.10
+  entropy_weight: 0.02
+  epochs: 60
+  learning_rate: 0.001
+  weight_decay: 0.00001
+  gradient_clip: 5.0
+  early_stopping_patience: 8
+  inference_batch_size: 8192
+
+scoring:
+  fusion: robust_logsumexp
+  fusion_temperature: 0.5
+  component_low_quantile: 0.05
+  component_high_quantile: 0.95
+  deployment_fpr: 0.01
+
+runtime:
+  device: cuda
+  num_workers: 0
+  output_dir: outputs/gotham_v4
+  embeddings_path: outputs/gotham_v4/train_embeddings.npz
+  flow_checkpoint: outputs/gotham_v4/flow_model.pt
+  neural_context_checkpoint: outputs/gotham_v4/neural_context_model.pt
+  calibration_path: outputs/gotham_v4/calibration.json
+  scores_path: outputs/gotham_v4/train_scores.csv
+  metrics_path: outputs/gotham_v4/train_metrics.json

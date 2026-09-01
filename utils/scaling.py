@@ -34,6 +34,38 @@ class FeatureStandardizer:
 
 
 @dataclass
+class VectorStandardizer:
+    """Ordinary train-only standardization for learned embedding vectors."""
+
+    mean: np.ndarray
+    scale: np.ndarray
+
+    @classmethod
+    def fit(cls, values: np.ndarray) -> "VectorStandardizer":
+        array = np.asarray(values, dtype=np.float64)
+        if array.ndim != 2 or len(array) == 0:
+            raise ValueError("VectorStandardizer requires a nonempty 2D array")
+        mean = array.mean(axis=0)
+        scale = array.std(axis=0)
+        scale = np.where(scale < 1e-6, 1.0, scale)
+        return cls(mean.astype(np.float32), scale.astype(np.float32))
+
+    def transform(self, values: np.ndarray) -> np.ndarray:
+        array = np.asarray(values, dtype=np.float32)
+        return ((array - self.mean) / self.scale).astype(np.float32)
+
+    def state_dict(self) -> dict[str, Any]:
+        return {"mean": self.mean.tolist(), "scale": self.scale.tolist()}
+
+    @classmethod
+    def from_state_dict(cls, state: dict[str, Any]) -> "VectorStandardizer":
+        return cls(
+            np.asarray(state["mean"], dtype=np.float32),
+            np.asarray(state["scale"], dtype=np.float32),
+        )
+
+
+@dataclass
 class MixedFeatureStandardizer:
     """Log-transform nonnegative count dimensions, preserve signed embeddings."""
 

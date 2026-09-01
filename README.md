@@ -1,10 +1,15 @@
 # Three-stage unsupervised flow NIDS
 
 This directory implements the full method described in `Design.md` and the
-event-aware/historical revision in `DesignV2.md`: a
+event-aware/historical revision in `DesignV2.md`, behavior-composition V3, and
+continuous neural-intensity V4: a
 payload-free PCAP-to-flow pipeline, masked-reconstruction TCN and normal
 prototypes, entity temporal prediction, reliability-aware spatial context, and
 normal-only score calibration.
+
+The current V4 design is documented in `DesignV4.md`. It uses directional
+IAT-aware `30 x 6` inputs, does not fit KMeans or emit hard `mode_id` values,
+and replaces empirical-tail max fusion with continuous robust log-sum-exp.
 
 ## Security and learning contract
 
@@ -115,6 +120,13 @@ fusion。完整设计见 `DesignV3.md`，快速验证命令为：
 
 ```bash
 python run_pipeline.py --config configs/smoke_v3.yaml --mode all --device cpu
+```
+
+V4 continuous neural-intensity smoke test:
+
+```bash
+python tests/generate_smoke_pcaps.py
+python run_pipeline.py --config configs/smoke_v4.yaml --mode all --device cpu
 ```
 
 Evaluation writes per-flow scores, per-entity temporal scores, and JSON metrics.

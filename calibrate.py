@@ -14,6 +14,7 @@ from utils.full_inference import score_raw_components
 from utils.io import write_json
 from utils.scaling import EmpiricalUpperTail, QuantileScoreScaler
 from utils.seed import choose_device, seed_everything
+from utils.v4_inference import V4RawScores, score_v4_components, smooth_max
 
 
 def _quantile_threshold(values: np.ndarray, false_positive_rate: float) -> float:
@@ -106,6 +107,57 @@ def _calibrate_v3(
     }
 
 
+def _calibrate_v4(
+    config: dict[str, Any], raw: V4RawScores, normal_segments: int
+) -> dict[str, Any]:
+    """Fit continuous normal-only scales without empirical-rank saturation."""
+
+    scoring = config["scoring"]
+    low_q = float(scoring["component_low_quantile"])
+    high_q = float(scoring["component_high_quantile"])
+    fpr = float(scoring["deployment_fpr"])
+    fusion_temperature = float(scoring.get("fusion_temperature", 1.0))
+    scalers = {
+        "local": QuantileScoreScaler.fit(raw.reconstruction_error, low_q, high_q),
+        "pair_context": QuantileScoreScaler.fit(
+            raw.pair_context_score, low_q, high_q
+        ),
+        "entity_context": QuantileScoreScaler.fit(
+            raw.entity_context_score, low_q, high_q
+        ),
+        "context": QuantileScoreScaler.fit(raw.context_score, low_q, high_q),
+    }
+    scores = {
+        "local": scalers["local"].transform(raw.reconstruction_error),
+        "pair_context": scalers["pair_context"].transform(raw.pair_context_score),
+        "entity_context": scalers["entity_context"].transform(
+            raw.entity_context_score
+        ),
+        "context": scalers["context"].transform(raw.context_score),
+    }
+    scores["final"] = smooth_max(
+        [scores["local"], scores["context"]], fusion_temperature
+    )
+    thresholds = {
+        name: _quantile_threshold(values, fpr) for name, values in scores.items()
+    }
+    return {
+        "format_version": 4,
+        "normal_calibration_segments": int(normal_segments),
+        "attack_samples_used": 0,
+        "context_mode": "neural_intensity",
+        "hard_mode_ids_used": False,
+        "ports_used": False,
+        "fusion": "robust_logsumexp",
+        "fusion_temperature": fusion_temperature,
+        "component_low_quantile": low_q,
+        "component_high_quantile": high_q,
+        "scalers": {name: scaler.state_dict() for name, scaler in scalers.items()},
+        "deployment_fpr": fpr,
+        "thresholds": thresholds,
+    }
+
+
 def calibrate(config: dict[str, Any], device_name: str | None = None) -> dict[str, Any]:
     seed_everything(int(config["seed"]))
     device = choose_device(device_name or config["runtime"].get("device"))
@@ -115,8 +167,19 @@ def calibrate(config: dict[str, Any], device_name: str | None = None) -> dict[st
     assert dataset_path is not None and metadata_path is not None and output_path is not None
     dataset = FlowDataset(dataset_path, metadata_path)
     indices = dataset.require_normal("calibration", "deployment calibration")
-    raw = score_raw_components(config, dataset, indices, device)
     context_mode = str(config.get("context_model", {}).get("mode", "legacy_spatial"))
+    if context_mode == "neural_intensity":
+        raw_v4 = score_v4_components(config, dataset, indices, device)
+        calibration = _calibrate_v4(config, raw_v4, len(indices))
+        write_json(output_path, calibration)
+        print(
+            f"V4 calibration complete normal_segments={len(indices)} "
+            f"target_fpr={calibration['deployment_fpr']:.4f} "
+            f"final_threshold={calibration['thresholds']['final']:.6f} "
+            f"output={output_path}"
+        )
+        return calibration
+    raw = score_raw_components(config, dataset, indices, device)
     if context_mode == "behavior_composition":
         calibration = _calibrate_v3(config, raw, len(indices))
         write_json(output_path, calibration)

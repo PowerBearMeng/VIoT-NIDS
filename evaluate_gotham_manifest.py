@@ -30,7 +30,9 @@ def dataset_config(base: dict[str, Any], dataset_name: str) -> dict[str, Any]:
     output_root = str(base["runtime"].get("output_dir", "outputs/gotham")).rstrip("/")
     prefix = f"{output_root}/evaluation/{dataset_name}"
     config["runtime"]["embeddings_path"] = f"{prefix}/embeddings.npz"
-    config["runtime"]["prototypes_path"] = f"{prefix}/prototypes.npz"
+    context_mode = str(config.get("context_model", {}).get("mode", "legacy_spatial"))
+    if context_mode != "neural_intensity":
+        config["runtime"]["prototypes_path"] = f"{prefix}/prototypes.npz"
     config["runtime"]["scores_path"] = f"{prefix}/flow_scores.csv"
     config["runtime"]["metrics_path"] = f"{prefix}/metrics.json"
     return config
@@ -47,14 +49,19 @@ def evaluate_one(
     base: dict[str, Any], dataset_name: str, device: str | None, keep_intermediates: bool
 ) -> dict[str, Any]:
     config = dataset_config(base, dataset_name)
-    training_prototypes = resolve_path(base, base["runtime"]["prototypes_path"])
-    assert training_prototypes is not None
+    context_mode = str(config.get("context_model", {}).get("mode", "legacy_spatial"))
+    training_prototypes = None
+    if context_mode != "neural_intensity":
+        training_prototypes = resolve_path(base, base["runtime"]["prototypes_path"])
+        assert training_prototypes is not None
     print(f"===== Gotham dataset: {dataset_name} =====", flush=True)
     prepare(config)
     extract(config, device)
-    apply_existing(config, training_prototypes)
+    if context_mode != "neural_intensity":
+        assert training_prototypes is not None
+        apply_existing(config, training_prototypes)
     metrics = evaluate(config, "test", device)
-    if dataset_name == "os_scan" and int(metrics.get("format_version", 1)) >= 3:
+    if dataset_name == "os_scan" and int(metrics.get("format_version", 1)) == 3:
         manifest_path = resolve_path(base, base["data"]["gotham_manifest"])
         workspace_root = resolve_path(base, base["data"].get("gotham_workspace_root", ".."))
         scores_path = resolve_path(config, config["runtime"]["scores_path"])
@@ -64,11 +71,13 @@ def evaluate_one(
         label_summary = capture_path.parent / "labels" / "label_summary.json"
         analyze_os_scan(scores_path, label_summary, scores_path.parent / "analysis")
     if not keep_intermediates:
-        for value in (
+        cleanup_values = [
             config["data"]["processed_path"],
             config["runtime"]["embeddings_path"],
-            config["runtime"]["prototypes_path"],
-        ):
+        ]
+        if context_mode != "neural_intensity":
+            cleanup_values.append(config["runtime"]["prototypes_path"])
+        for value in cleanup_values:
             path = resolve_path(config, value)
             if path is not None:
                 path.unlink(missing_ok=True)

@@ -20,7 +20,7 @@ from data.flow_builder import (
     build_capture_segments,
     split_train_calibration,
 )
-from data.microbin_features import FEATURE_NAMES
+from data.microbin_features import feature_names
 from utils.config import load_config, resolve_path
 
 
@@ -134,6 +134,11 @@ def prepare(config: dict[str, Any], extra_pcaps: list[str] | None = None) -> dic
             window_alignment=str(
                 config["data"].get("window_alignment", "capture")
             ).lower(),
+            microbin_feature_profile=str(
+                config["data"].get(
+                    "microbin_feature_profile", "bidirectional_basic_v1"
+                )
+            ).lower(),
         )
         if spec.split == "train_calibration":
             built = split_train_calibration(
@@ -196,7 +201,20 @@ def prepare(config: dict[str, Any], extra_pcaps: list[str] | None = None) -> dic
         "num_captures": len(specs),
         "feature_shape": [int(round(float(config["data"]["flow_window_seconds"]) / float(config["data"]["micro_bin_seconds"]))), 6],
         "num_bins": int(round(float(config["data"]["flow_window_seconds"]) / float(config["data"]["micro_bin_seconds"]))),
-        "feature_names": list(FEATURE_NAMES),
+        "feature_names": list(
+            feature_names(
+                str(
+                    config["data"].get(
+                        "microbin_feature_profile", "bidirectional_basic_v1"
+                    )
+                ).lower()
+            )
+        ),
+        "microbin_feature_profile": str(
+            config["data"].get(
+                "microbin_feature_profile", "bidirectional_basic_v1"
+            )
+        ).lower(),
         "flow_window_seconds": float(config["data"]["flow_window_seconds"]),
         "micro_bin_seconds": float(config["data"]["micro_bin_seconds"]),
         "flow_orientation": str(

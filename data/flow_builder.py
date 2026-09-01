@@ -12,7 +12,11 @@ from pathlib import Path
 
 import numpy as np
 
-from .microbin_features import MicroBinAccumulator
+from .microbin_features import (
+    DirectionalIATAccumulator,
+    MicroBinAccumulator,
+    make_accumulator,
+)
 from .pcap_reader import PacketRecord, iter_packets
 
 
@@ -171,6 +175,7 @@ def build_capture_segments(
     min_packets: int,
     flow_orientation: str = "bidirectional",
     window_alignment: str = "capture",
+    microbin_feature_profile: str = "bidirectional_basic_v1",
 ) -> list[SegmentRecord]:
     started = time.perf_counter()
     packets = iter_packets(
@@ -181,12 +186,21 @@ def build_capture_segments(
         return []
     origin = first.timestamp
     num_bins = int(round(window_seconds / micro_bin_seconds))
-    accumulators: "OrderedDict[tuple[object, ...], MicroBinAccumulator]" = OrderedDict()
+    accumulators: "OrderedDict[tuple[object, ...], MicroBinAccumulator | DirectionalIATAccumulator]" = OrderedDict()
     attack_segments: dict[tuple[object, ...], bool] = {}
     segment_starts: dict[tuple[object, ...], float] = {}
+    last_flow_timestamps: dict[tuple[object, ...], float] = {}
     labels = PacketAttackLabelStream(spec.packet_labels)
 
     def consume(packet: PacketRecord) -> None:
+        flow_key, direction = packet_flow(packet, flow_orientation)
+        previous_timestamp = last_flow_timestamps.get(flow_key)
+        iat_seconds = (
+            None
+            if previous_timestamp is None
+            else max(0.0, packet.timestamp - previous_timestamp)
+        )
+        last_flow_timestamps[flow_key] = packet.timestamp
         window_index, segment_start, within_window = window_coordinates(
             packet.timestamp,
             origin=origin,
@@ -194,11 +208,18 @@ def build_capture_segments(
             window_alignment=window_alignment,
         )
         bin_index = min(num_bins - 1, int(np.floor(within_window / micro_bin_seconds + 1e-12)))
-        flow_key, direction = packet_flow(packet, flow_orientation)
         key = (window_index, *flow_key)
-        accumulator = accumulators.setdefault(key, MicroBinAccumulator(num_bins))
+        accumulator = accumulators.get(key)
+        if accumulator is None:
+            accumulator = make_accumulator(num_bins, microbin_feature_profile)
+            accumulators[key] = accumulator
         segment_starts.setdefault(key, segment_start)
-        accumulator.add(bin_index, direction, packet.wire_length)
+        accumulator.add(
+            bin_index,
+            direction,
+            packet.wire_length,
+            iat_seconds=iat_seconds,
+        )
         if labels.is_attack(packet.frame_number):
             attack_segments[key] = True
 

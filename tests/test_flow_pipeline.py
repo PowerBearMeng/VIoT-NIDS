@@ -11,7 +11,8 @@ from data.behavior_composition import (
     score_behavior_composition,
 )
 from data.flow_builder import canonical_flow, directional_flow, window_coordinates
-from data.microbin_features import MicroBinAccumulator
+from data.microbin_features import DirectionalIATAccumulator, MicroBinAccumulator
+from data.neural_intensity import aggregate_soft_masses, build_scope_index
 from data.pcap_reader import PacketRecord
 from data.spatial_context import (
     build_historical_spatial_samples,
@@ -19,9 +20,11 @@ from data.spatial_context import (
     initial_historical_state,
 )
 from models.flow_encoder import FlowAutoencoder
+from models.neural_intensity_context import NeuralIntensityContext
 from utils.flow_runtime import complementary_masks, deterministic_masks
 from utils.metrics import detection_metrics, equal_error_rate
 from utils.scaling import EmpiricalUpperTail
+from utils.v4_inference import smooth_max
 
 
 class FlowConstructionTests(unittest.TestCase):
@@ -62,6 +65,20 @@ class FlowConstructionTests(unittest.TestCase):
             12.0, origin=1.25, window_seconds=3.0, window_alignment="epoch"
         )
         self.assertEqual(boundary, (4, 12.0, 0.0))
+
+    def test_directional_iat_features_use_all_six_channels(self) -> None:
+        accumulator = DirectionalIATAccumulator(2)
+        accumulator.add(0, 0, 60, None)
+        accumulator.add(0, 0, 100, 0.010)
+        accumulator.add(0, 0, 80, 0.030)
+        features = accumulator.finalize()
+        self.assertEqual(features.shape, (2, 6))
+        np.testing.assert_allclose(
+            features[0],
+            [3.0, 240.0, 80.0, np.std([60.0, 100.0, 80.0]), 20.0, 10.0],
+            rtol=1e-5,
+        )
+        np.testing.assert_allclose(features[1], np.zeros(6))
 
 
 class SpatialContextTests(unittest.TestCase):
@@ -141,6 +158,44 @@ class FlowV2Tests(unittest.TestCase):
         reconstruction, embedding = model(values, mask)
         self.assertEqual(tuple(reconstruction.shape), (3, 30, 6))
         self.assertEqual(tuple(embedding.shape), (3, 5))
+
+
+class FlowV4Tests(unittest.TestCase):
+    def test_soft_behavior_mass_is_target_specific_without_mode_id(self) -> None:
+        dataset = SimpleNamespace(
+            capture_ids=np.asarray(["c", "c", "c"]),
+            window_indices=np.asarray([1, 1, 1]),
+            endpoint_a_ips=np.asarray(["camera", "camera", "camera"]),
+            endpoint_b_ips=np.asarray(["nvr", "nvr", "nvr"]),
+        )
+        scope = build_scope_index(dataset, np.arange(3))
+        assignments = np.asarray(
+            [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0]], dtype=np.float32
+        )
+        pair, entity_a, entity_b = aggregate_soft_masses(assignments, scope)
+        expected = np.asarray([np.log(2.0), np.log(2.0), 0.0], dtype=np.float32)
+        np.testing.assert_allclose(pair, expected)
+        np.testing.assert_allclose(entity_a, expected)
+        np.testing.assert_allclose(entity_b, expected)
+
+    def test_neural_intensity_outputs_continuous_soft_assignments(self) -> None:
+        model = NeuralIntensityContext(
+            embedding_dim=5, hidden_dim=8, latent_channels=3
+        )
+        embeddings = torch.randn(4, 5)
+        assignments = model.assignments(embeddings)
+        self.assertEqual(tuple(assignments.shape), (4, 3))
+        torch.testing.assert_close(assignments.sum(dim=1), torch.ones(4))
+        parameters = model.expected_parameters(embeddings)
+        self.assertEqual([tuple(value.shape) for value in parameters], [(4,)] * 4)
+
+    def test_robust_logsumexp_fusion_does_not_cap_large_scores(self) -> None:
+        local = np.asarray([0.0, 1.0, 100.0])
+        context = np.asarray([0.0, 2.0, 3.0])
+        fused = smooth_max([local, context], 0.5)
+        self.assertEqual(float(fused[0]), 0.0)
+        self.assertGreater(float(fused[2]), 99.0)
+        self.assertGreater(float(fused[2]), float(fused[1]))
 
 
 class BehaviorCompositionTests(unittest.TestCase):

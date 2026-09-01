@@ -109,11 +109,18 @@ def detection_metrics(labels: np.ndarray, scores: np.ndarray, threshold: float) 
     fpr, tpr, _ = roc_curve(labels, scores)
     precision, recall, _ = precision_recall_curve(labels, scores)
     eer = equal_error_rate(labels, scores)
+    average_precision = _as_optional(average_precision_score(labels, scores))
+    trapezoid_auprc = _as_optional(auc(recall[::-1], precision[::-1]))
     result.update(
         {
             "AUROC": _as_optional(roc_auc_score(labels, scores)),
-            "AUPRC": _as_optional(auc(recall[::-1], precision[::-1])),
-            "average_precision": _as_optional(average_precision_score(labels, scores)),
+            # Match the TFusion/Kitsune baseline convention: PR-AUC is
+            # tie-aware Average Precision.  Keep trapezoidal integration as a
+            # separate diagnostic because large score ties can make it
+            # pathologically different from AP.
+            "AUPRC": average_precision,
+            "average_precision": average_precision,
+            "AUPRC_trapezoid": trapezoid_auprc,
             "EER": float(eer["value"]),
             "eer": eer,
             "TPR@FPR<=1%": float(tpr[fpr <= 0.01].max(initial=0.0)),
