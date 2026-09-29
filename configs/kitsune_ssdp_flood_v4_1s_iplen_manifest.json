@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "dataset_name": "kitsune_ssdp_flood_v4_1s_iplen",
+  "training": {
+    "source_dataset": "SSDP_Flood",
+    "start_packet": 1,
+    "end_packet": 1000000,
+    "packets": 1000000,
+    "labels_used_for_training": false
+  },
+  "evaluation": {
+    "datasets": ["SSDP_Flood"],
+    "fpr_targets": [0.01, 0.001, 0.0001]
+  },
+  "datasets": {
+    "SSDP_Flood": {
+      "pcap": "external/kitsune_data/SSDP Flood/SSDP_Flood_pcap.pcap",
+      "labels": "external/kitsune_data/SSDP Flood/SSDP_Flood_labels.csv",
+      "total_packets": 4077266,
+      "test_start_packet": 1000001,
+      "test_end_packet": 4077266
+    }
+  }
+}

@@ -104,7 +104,7 @@ def detection_metrics(labels: np.ndarray, scores: np.ndarray, threshold: float) 
         "confusion_matrix": {"tn": tn, "fp": fp, "fn": fn, "tp": tp},
     }
     if not positives.any() or not negatives.any():
-        result.update({"AUROC": None, "AUPRC": None, "average_precision": None, "EER": None, "eer": None, "TPR@FPR<=1%": None, "TPR@FPR<=0.1%": None})
+        result.update({"AUROC": None, "AUPRC": None, "average_precision": None, "EER": None, "eer": None, "TPR@FPR<=1%": None, "TPR@FPR<=0.1%": None, "TPR@FPR<=0.01%": None})
         return result
     fpr, tpr, _ = roc_curve(labels, scores)
     precision, recall, _ = precision_recall_curve(labels, scores)
@@ -125,6 +125,7 @@ def detection_metrics(labels: np.ndarray, scores: np.ndarray, threshold: float) 
             "eer": eer,
             "TPR@FPR<=1%": float(tpr[fpr <= 0.01].max(initial=0.0)),
             "TPR@FPR<=0.1%": float(tpr[fpr <= 0.001].max(initial=0.0)),
+            "TPR@FPR<=0.01%": float(tpr[fpr <= 0.0001].max(initial=0.0)),
         }
     )
     return result

@@ -8,6 +8,7 @@ leave this adapter.
 from __future__ import annotations
 
 import importlib.util
+import struct
 import sys
 from dataclasses import dataclass
 from functools import lru_cache
@@ -50,11 +51,24 @@ def iter_packets(
     *,
     reader_path: str | Path,
     allowed_protocols: set[str] | None = None,
+    start_frame: int | None = None,
+    end_frame: int | None = None,
 ) -> Iterator[PacketRecord]:
     """Yield payload-independent metadata for supported TCP/UDP packets."""
     reader = _load_reader(str(Path(reader_path).expanduser().resolve()))
     protocols = allowed_protocols or {"tcp", "udp"}
     for frame_number, captured in enumerate(reader.iter_capture(Path(pcap_path)), start=1):
+        if start_frame is not None and frame_number < start_frame:
+            continue
+        if end_frame is not None and frame_number > end_frame:
+            break
+        # Match TFusion's tshark ``ip.len`` semantics.  The capture used by
+        # Kitsune has snaplen~=200, so len(captured.data) is only caplen and
+        # severely truncates video packet sizes.  IPv4 total_length remains in
+        # the captured IP header and is therefore available without payload.
+        wire_length = _tfusion_ipv4_length(captured, reader)
+        if wire_length is None:
+            continue
         parsed = reader.parse_packet(
             captured,
             include_link_header=False,
@@ -69,6 +83,21 @@ def iter_packets(
             src_port=int(parsed.src_port),
             dst_port=int(parsed.dst_port),
             protocol=parsed.protocol,
-            wire_length=len(captured.data),
+            wire_length=wire_length,
             frame_number=frame_number,
         )
+
+
+def _tfusion_ipv4_length(captured: object, reader: ModuleType) -> int | None:
+    """Return clamp(ip.len, 1, 1500), exactly as TFusion preprocessing does."""
+    data = captured.data
+    decoded = reader._network_offset(data, captured.linktype)
+    if decoded is None:
+        return None
+    network_offset, ethertype = decoded
+    if ethertype != 0x0800 or len(data) < network_offset + 4:
+        return None
+    total_length = struct.unpack("!H", data[network_offset + 2 : network_offset + 4])[0]
+    if total_length < 20:
+        return None
+    return max(1, min(1500, int(total_length)))

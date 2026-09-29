@@ -1,0 +1,14 @@
+{
+  "rows": 697851,
+  "original_attack_packets": 65700,
+  "response_packets": 65549,
+  "causal_attack_packets": 131249,
+  "response_protocol_counts": {
+    "tcp": 65547,
+    "icmp": 2
+  },
+  "tolerance_ms": 10.0,
+  "policy": "original attack packet OR exact reverse five-tuple response after attack within tolerance",
+  "source": "/home/mfh/Desktop/test/outputs/kitsune_data/tcg_ids/cache/packet_metadata/OS_Scan_test_1000001_to_1697851.csv",
+  "output": "/home/mfh/Desktop/test/myModel/data/labels/kitsune_os_scan_causal_response_labels.csv"
+}

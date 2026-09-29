@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "dataset_name": "kitsune_syn_dos_v4_1s_iplen",
+  "training": {
+    "source_dataset": "SYN_DoS",
+    "start_packet": 1,
+    "end_packet": 1000000,
+    "packets": 1000000,
+    "labels_used_for_training": false
+  },
+  "evaluation": {
+    "datasets": ["SYN_DoS"],
+    "fpr_targets": [0.01, 0.001, 0.0001]
+  },
+  "datasets": {
+    "SYN_DoS": {
+      "pcap": "external/kitsune_data/SYN DoS/SYN_DoS_pcap.pcap",
+      "labels": "external/kitsune_data/SYN DoS/SYN_DoS_labels.csv",
+      "total_packets": 2771276,
+      "test_start_packet": 1000001,
+      "test_end_packet": 2771276
+    }
+  }
+}

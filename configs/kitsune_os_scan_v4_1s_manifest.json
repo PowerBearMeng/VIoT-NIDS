@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "dataset_name": "kitsune_os_scan_v4_1s",
+  "training": {
+    "source_dataset": "OS_Scan",
+    "start_packet": 1,
+    "end_packet": 1000000,
+    "packets": 1000000,
+    "labels_used_for_training": false
+  },
+  "evaluation": {
+    "datasets": ["OS_Scan"],
+    "fpr_targets": [0.01, 0.001, 0.0001]
+  },
+  "datasets": {
+    "OS_Scan": {
+      "pcap": "external/kitsune_data/OS Scan/OS_Scan_pcap.pcapng",
+      "labels": "myModel/data/labels/kitsune_os_scan_packet_labels.csv",
+      "total_packets": 1697851,
+      "test_start_packet": 1000001,
+      "test_end_packet": 1697851
+    }
+  }
+}

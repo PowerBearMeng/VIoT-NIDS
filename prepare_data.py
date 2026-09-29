@@ -9,6 +9,7 @@ import glob
 import json
 import time
 from collections import Counter
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -34,7 +35,7 @@ def _normalize_split(value: str) -> str:
 
 
 def _configured_sources(config: dict[str, Any]) -> list[CaptureSpec]:
-    specs: dict[Path, CaptureSpec] = {}
+    specs: dict[tuple[Path, str, bool], CaptureSpec] = {}
     gotham_manifest_value = config["data"].get("gotham_manifest")
     if gotham_manifest_value:
         manifest_path = resolve_path(config, gotham_manifest_value)
@@ -52,23 +53,30 @@ def _configured_sources(config: dict[str, Any]) -> list[CaptureSpec]:
         )
         include_training = bool(config["data"].get("include_gotham_training", True))
         include_evaluation = bool(config["data"].get("include_gotham_evaluation", True))
-        selected_names = (
-            ([training_name] if include_training else [])
-            + (evaluation_names if include_evaluation else [])
+        selected = (
+            ([(training_name, True)] if include_training else [])
+            + ([(name, False) for name in evaluation_names] if include_evaluation else [])
         )
-        for dataset_name in selected_names:
+        for dataset_name, is_training in selected:
             if dataset_name not in manifest_data["datasets"]:
                 raise ValueError(f"Dataset {dataset_name!r} is absent from Gotham manifest")
             row = manifest_data["datasets"][dataset_name]
             path = (workspace_root / row["pcap"]).resolve()
-            is_training = dataset_name == training_name
             label_path = None if is_training else (workspace_root / row["labels"]).resolve()
-            specs[path] = CaptureSpec(
+            if is_training:
+                start_frame = int(manifest_data["training"].get("start_packet", 1))
+                end_frame = int(manifest_data["training"].get("end_packet", row.get("total_packets", 0))) or None
+            else:
+                start_frame = int(row.get("test_start_packet", 1))
+                end_frame = int(row.get("test_end_packet", row.get("total_packets", 0))) or None
+            specs[(path, dataset_name, is_training)] = CaptureSpec(
                 path=path,
                 label="normal",
                 split="train_calibration" if is_training else "test",
                 packet_labels=label_path,
                 dataset_name=dataset_name,
+                start_frame=start_frame,
+                end_frame=end_frame,
             )
     for source in config["data"].get("sources", []):
         pattern = resolve_path(config, source["glob"])
@@ -76,7 +84,7 @@ def _configured_sources(config: dict[str, Any]) -> list[CaptureSpec]:
         for value in glob.glob(str(pattern), recursive=True):
             path = Path(value).resolve()
             if path.suffix.lower() in {".pcap", ".pcapng"}:
-                specs[path] = CaptureSpec(
+                specs[(path, "source", False)] = CaptureSpec(
                     path, str(source["label"]).strip(), _normalize_split(source["split"])
                 )
     manifest_value = config["data"].get("manifest")
@@ -91,8 +99,8 @@ def _configured_sources(config: dict[str, Any]) -> list[CaptureSpec]:
             for row in reader:
                 path = Path(row["pcap"]).expanduser()
                 path = path.resolve() if path.is_absolute() else (manifest.parent / path).resolve()
-                specs[path] = CaptureSpec(path, row["label"].strip(), _normalize_split(row["split"]))
-    missing = [str(path) for path in specs if not path.is_file()]
+                specs[(path, "manifest", False)] = CaptureSpec(path, row["label"].strip(), _normalize_split(row["split"]))
+    missing = [str(spec.path) for spec in specs.values() if not spec.path.is_file()]
     if missing:
         raise FileNotFoundError(f"Capture files do not exist: {missing[:5]}")
     missing_labels = [
@@ -141,9 +149,25 @@ def prepare(config: dict[str, Any], extra_pcaps: list[str] | None = None) -> dic
             ).lower(),
         )
         if spec.split == "train_calibration":
-            built = split_train_calibration(
-                built, float(config["data"].get("calibration_fraction", 0.2))
-            )
+            if bool(config["data"].get("reuse_train_for_calibration", False)):
+                # Explicit ablation mode: train and threshold on the same normal
+                # flows. Duplicate the rows because the artifact format assigns
+                # exactly one split to each row. The suffix keeps segment IDs
+                # unique while preserving the flow/window metadata and features.
+                train_rows = [replace(row, split="train") for row in built]
+                calibration_rows = [
+                    replace(
+                        row,
+                        split="calibration",
+                        segment_id=f"{row.segment_id}::reused_for_calibration",
+                    )
+                    for row in built
+                ]
+                built = train_rows + calibration_rows
+            else:
+                built = split_train_calibration(
+                    built, float(config["data"].get("calibration_fraction", 0.2))
+                )
         records.extend(built)
         split_summary = dict(Counter(row.split for row in built))
         label_summary = dict(Counter(row.label_name for row in built))
@@ -243,8 +267,14 @@ def prepare(config: dict[str, Any], extra_pcaps: list[str] | None = None) -> dic
         "label_counts": dict(Counter(row.label_name for row in records)),
         "captures": [str(spec.path) for spec in specs],
         "baseline_reader": str(reader_path),
+        "packet_length_source": "IPv4 ip.total_length clamped to [1,1500], matching TFusion tshark ip.len",
         "gotham_manifest": str(resolve_path(config, gotham_manifest_value)) if gotham_manifest_value else None,
         "label_policy": "flow segment is attack when any eligible constituent packet has binary_label=1",
+        "calibration_strategy": (
+            "reuse_all_training_flows"
+            if bool(config["data"].get("reuse_train_for_calibration", False))
+            else "chronological_held_out_tail"
+        ),
         "preprocessing_runtime": {
             "seconds": float(time.perf_counter() - started),
             "packets": int(sum(row.packet_count for row in records)),

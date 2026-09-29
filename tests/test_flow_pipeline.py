@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+import struct
 from types import SimpleNamespace
 
 import numpy as np
@@ -13,7 +14,7 @@ from data.behavior_composition import (
 from data.flow_builder import canonical_flow, directional_flow, window_coordinates
 from data.microbin_features import DirectionalIATAccumulator, MicroBinAccumulator
 from data.neural_intensity import aggregate_soft_masses, build_scope_index
-from data.pcap_reader import PacketRecord
+from data.pcap_reader import PacketRecord, _tfusion_ipv4_length
 from data.spatial_context import (
     build_historical_spatial_samples,
     build_spatial_samples,
@@ -28,6 +29,19 @@ from utils.v4_inference import smooth_max
 
 
 class FlowConstructionTests(unittest.TestCase):
+    def test_tfusion_length_uses_ipv4_total_length_not_capture_length(self) -> None:
+        ethernet = b"\x00" * 12 + b"\x08\x00"
+        ipv4 = bytearray(20)
+        ipv4[0] = 0x45
+        ipv4[2:4] = struct.pack("!H", 1400)
+        captured = SimpleNamespace(data=ethernet + bytes(ipv4), linktype=1)
+        reader = SimpleNamespace(_network_offset=lambda data, linktype: (14, 0x0800))
+        self.assertEqual(_tfusion_ipv4_length(captured, reader), 1400)
+
+        ipv4[2:4] = struct.pack("!H", 2000)
+        captured = SimpleNamespace(data=ethernet + bytes(ipv4), linktype=1)
+        self.assertEqual(_tfusion_ipv4_length(captured, reader), 1500)
+
     def test_reverse_packets_share_key_and_flip_direction(self) -> None:
         forward = PacketRecord(1.0, "10.0.0.1", "10.0.0.2", 111, 222, "udp", 60)
         reverse = PacketRecord(1.1, "10.0.0.2", "10.0.0.1", 222, 111, "udp", 70)
