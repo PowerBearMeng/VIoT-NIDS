@@ -1,0 +1,11 @@
+seed: 42
+base_v5_model: outputs/v5/model_scaled
+benign_flows: outputs/v5/benign_flows.csv
+context:
+  max_components: 4
+  reg_covar: 0.0001
+  min_cell_train: 80
+  min_cell_calibration: 20
+  min_role_train: 80
+  min_role_calibration: 20
+
