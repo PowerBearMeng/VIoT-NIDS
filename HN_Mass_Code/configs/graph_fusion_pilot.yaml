@@ -1,0 +1,14 @@
+base_root: /home/mfh/Desktop/test/myModel/outputs/graph_tcg_pilot
+output_root: /home/mfh/Desktop/test/myModel/outputs/graph_fusion_pilot
+fusion_epochs: 20
+joint_epochs: 40
+seed: 42
+batch_size: 256
+steps_per_epoch: 100
+encoder_lr: 0.0003
+head_lr: 0.001
+gradient_clip: 5.0
+weight_batches: 16
+score_batch_size: 256
+fusion_protocol_version: 2
+private_time_policy: past_relative_v1

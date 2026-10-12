@@ -1,0 +1,11 @@
+{
+  "real_normal_flows": 12518,
+  "directed_mass_conserved": true,
+  "mean_invariant_when_repeated": true,
+  "mass_changes_proportionally_when_repeated": true,
+  "anonymous_identity_permutation_invariant": true,
+  "history_only_precedes_target": true,
+  "empty_observations_distinct_from_padding": true,
+  "labels_absent_from_neural_inputs": true,
+  "full_pairwise_matrix_created": false
+}

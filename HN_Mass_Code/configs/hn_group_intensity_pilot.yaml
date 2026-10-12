@@ -1,0 +1,21 @@
+base_root: /home/mfh/Desktop/test/myModel/outputs/graph_tcg_pilot
+source_root: /home/mfh/Desktop/test/myModel/outputs/graph_fusion_pilot
+source_run: HN/joint/gated-contrast
+output_root: /home/mfh/Desktop/test/myModel/outputs/hn_group_intensity_pilot_20261012
+seed: 42
+torch_threads: 4
+history_seconds: 16
+behavior_channels: 16
+normal_states: 8
+epochs: 20
+batch_size: 256
+steps_per_epoch: 100
+learning_rate: 0.001
+gradient_clip: 5.0
+sigma_floor: 0.15
+feature_scale_floor: 0.05
+score_batch_size: 1024
+variants: [mean, mass]
+suite: [Mirai Single Bot, SYN DoS, LRDoS Stealth, OS Scan]
+primary_direction: sender
+fusion_rule: normal_q50_q95_affine_sum
