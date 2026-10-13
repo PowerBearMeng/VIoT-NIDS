@@ -1,0 +1,17 @@
+seed: 42
+torch_threads: 4
+behavior_k: 16
+history_seconds: 192
+normal_states: 8
+hidden_size: 64
+pretrain_epochs: 20
+pretrain_lr: 0.001
+epochs: 20
+learning_rate: 0.001
+batch_size: 256
+score_batch_size: 256
+distance_batch_size: 4096
+steps_per_epoch: 100
+gradient_clip: 5.0
+mass_sigma_floor: 0.15
+feature_scale_floor: 0.05

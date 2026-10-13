@@ -1,0 +1,6 @@
+family,attack_nonempty_seconds,attack_seconds_median_above_p99,sparse_attack_seconds_1_to_16,sparse_seconds_median_above_p99,minimum_second_median
+LRDoS Stealth,32,32,1,1,5.111524200494612
+Mirai Single Bot,121,110,100,89,0.7600641682353366
+OS Scan,170,162,9,1,0.0206153676557383
+SYN DoS,11,11,0,0,69.3927719244298
+UDP Flood,12,12,0,0,76.21032077543781

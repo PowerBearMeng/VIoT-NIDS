@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "behavior-mass-nids"
+version = "0.1.0"
+description = "Normal behavior prototypes and causal group intensity for network anomaly scoring"
+requires-python = ">=3.10"
+dependencies = ["numpy==1.26.4", "pandas==2.2.3", "scikit-learn==1.5.2", "PyYAML==6.0.2", "torch==2.5.1"]
+
+[project.optional-dependencies]
+export = ["joblib==1.4.2"]
+
+[project.scripts]
+behavior-mass = "behavior_mass_nids.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

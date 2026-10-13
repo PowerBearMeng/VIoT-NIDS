@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv*/
+build/
+dist/
+/artifacts/
+/datasets/
+/outputs/
+*.pcap
+*.pcapng
+*.pt
+*.joblib
+*.npz
+.DS_Store

@@ -1,0 +1,39 @@
+{
+  "normal_flows": 12518,
+  "normal_roles_exact": true,
+  "all_continuous_scores_finite": true,
+  "original_normal_scores_match": true,
+  "score_max_absolute_difference": {
+    "prototype_raw": 0.0,
+    "mass_raw": 0.0,
+    "final_score": 4.440892098500626e-16
+  },
+  "device": "cuda",
+  "new_training": false,
+  "normal_scaling_unchanged": true,
+  "OS_Scan": {
+    "flows": 136165,
+    "original_scores_match": true,
+    "max_absolute_difference": {
+      "mass_raw": 0.0,
+      "prototype_raw": 2.220446049250313e-15,
+      "final_score": 5.551115123125783e-16
+    },
+    "model_parameters_frozen": true,
+    "AUROC": 0.9998652609266748,
+    "AP": 0.9999946460839529,
+    "EER": 0.004549201599853495
+  },
+  "anonymous_identity_permutation": {
+    "invariant": true,
+    "max_absolute_difference": 3.9830706954901984e-07
+  },
+  "K16_normal": {
+    "flows": 12518,
+    "original_scores_match": true
+  },
+  "syntax_checked_python_files": 15,
+  "full_fresh_training_executed": false,
+  "cudnn_deterministic": true,
+  "final_source_normal_scores_rechecked": true
+}
